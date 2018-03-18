@@ -1,10 +1,7 @@
 /**
  * main.css
- * v 1.0
+ * v 1.4
  */
-
-/* Fonts
-   ========================================================================== */
 
 /* Base options
    ========================================================================== */
@@ -162,6 +159,8 @@ font-size: 2em; background-color: white; cursor: pointer; }
 	#forecast-header { width: 1085px; }
 }
 
-/* Errors messages
+/* Messages
    ========================================================================== */
-#forecast-error { text-align: center; margin-top: 50px; font-size: 1.2em; padding-top: 150px; color: #2e3d49; }
+#forecast-error, 
+#forecast-loading { text-align: center; margin-top: 50px; font-size: 1.2em; padding-top: 150px; color: #2e3d49; }
+#forecast-loading { margin-top: 0px; }

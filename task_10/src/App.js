@@ -1,160 +1,156 @@
 /**
- * App.js
- * version 1.4
+ * App
+ * version 1.0
+ * props
+ *	container
  */
-import SearchForm      from './components/SearchForm';
-import ForecastHeader  from './components/ForecastHeader';
-import ForecastData    from './components/ForecastData';
-import FavoritesData   from './components/FavoritesData';
-import HistoryData     from './components/HistoryData';
-import { getForecast } from './utils/api';
+import Component              from './component';
+import { getForecast }        from './api';
+import SearchFormComponent    from './components/search/search.form.component';
+import ForecastHostComponent  from './components/forecast/forecast.host.component';
+import StorageHostComponent   from './components/storage/storage.host.component';
+import { cityFromLoc, cityToLoc, cityUppercase } from './utils';
 
-class App {
-	constructor() {
+class App extends Component {
+	constructor(props) {
+		super(props);
+
 		this.state = {
-			formSearch: '',
-			headerForecast: '',
-			dataForecast: '',
-			dataFavorites: '',
-			dataHistory: '',
+			city      : '',
+			period    : 3,
+			isCelsius : true,
+			forecast  : {},
+			valid     : true,
+			waiting   : false,
+			favorites : JSON.parse(localStorage.getItem('weather-app-favorites')) || [],
+			history   : JSON.parse(localStorage.getItem('weather-app-history')) || [],
 		};
 
-		this.appName = 'weather-app';
+		this.container = this.props.container;
 
-		this.header  = document.getElementById('header-inner');
-		this.main    = document.getElementById('main-inner');
-		this.aside   = document.getElementById('aside-inner');
+		this.searchForm = new SearchFormComponent({
+			onSubmit       : this.onSubmit.bind(this),
+			onChangePeriod : this.onChangePeriod.bind(this),
+			onChangeUnit   : this.onChangeUnit.bind(this),
+			city           : this.state.city,
+			period         : this.state.period,
+			isCelsius      : this.state.isCelsius,
+		});
+		this.forecastHost = new ForecastHostComponent({
+			valid          : this.state.valid,
+			isCelsius      : this.state.isCelsius,
+			forecast       : this.state.forecast,
+			onAddFavorite  : this.onAddFavorite.bind(this),
+			onDelFavorite  : this.onDelFavorite.bind(this),
+		});
+		this.storageHost = new StorageHostComponent({
+			favorites      : this.state.favorites,
+			history        : this.state.history,
+			onClickStorage : this.onClickStorage.bind(this),
+			onDelFavorite  : this.onDelFavorite.bind(this),
+			onDelHistory   : this.onDelHistory.bind(this),
+		});
 
-		this.searchForm = new SearchForm({
-			onSubmit:       this.onSubmit.bind(this),
-			onChangePeriod: this.onChangePeriod.bind(this),
-			onChangeUnit:   this.onChangeUnit.bind(this),
-		});
-		this.forecastHeader = new ForecastHeader({
-			onAddFavorite: this.onAddFavorite.bind(this),
-			onDelFavorite: this.onDelFavorite.bind(this),
-		});
-		this.forecastData  = new ForecastData({});
-		this.favoritesData = new FavoritesData({
-			prefix: this.appName,
-			limit: 15,
-			onClickFavorite: this.onClickFavorite.bind(this),
-			onClearFavorite: this.onClearFavorite.bind(this),
-		});
-		this.historyData   = new HistoryData({
-			prefix: this.appName,
-			limit: 20,
-			onClickHistory: this.onClickHistory.bind(this),
-			onClearHistory: this.onClearHistory.bind(this),
-		});
 		window.addEventListener('unload', this.onWindowUnload.bind(this));
 	}
 
-	updateState(nextState) {
-		this.state = Object.assign({}, this.state, nextState);
-		this.onAfterUpdate(nextState);
-	}
-
-	onAfterUpdate(nextState) {
-		// search
-		if (nextState.formSearch) {
-			this.header.innerHTML = '<h1>Weather forecast for the city up to 2 weeks</h1>';
-			if (this.state.formSearch) this.header.appendChild(this.state.formSearch);
-		}
-
-		// forecast
-		if (nextState.headerForecast || nextState.dataForecast) {
-			this.main.innerHTML = '';
-			if (this.state.headerForecast) this.main.appendChild(this.state.headerForecast);
-			if (this.state.dataForecast) this.main.appendChild(this.state.dataForecast);
-		}
-
-		// favorites and history
-		if (nextState.dataFavorites || nextState.dataHistory) {
-			this.aside.innerHTML = '';
-			if (this.state.dataFavorites) this.aside.appendChild(this.state.dataFavorites);
-			if (this.state.dataHistory) this.aside.appendChild(this.state.dataHistory);
-		}
-	}
-
 	init() {
-		this.updateState({
-			formSearch: this.searchForm.updateState({}),
-			dataFavorites: this.favoritesData.updateState({}),
-			dataHistory: this.historyData.updateState({}),
-		});
-
-		const city = new URLSearchParams(window.location.search).get('city') || '';
-		if (city) this.onSubmit(city.replace('_', ' '));
+		const city = cityFromLoc();
+		city ? this.updateState({ city, waiting: true }) : this.updateState();
 	}
-
 
 	onSubmit(city) {
-		getForecast(city).then(data => {
-			history.pushState({}, "Forecast for " + data.city_name, "?city=" + data.city_name.replace(' ', '_'));
-			this.searchForm.updateProps({city: data.city_name});
-			this.updateState({
-				headerForecast: this.forecastHeader.updateState({ valid: true, data, favorite: this.favoritesData.check(data.city_name) }),
-				dataForecast: this.forecastData.updateState({ valid: true, data }),
-				dataHistory: this.historyData.updateState({ add: data.city_name }),
-			});
-		}).catch(error => {
-			this.searchForm.updateProps({ city });
-			this.updateState({
-				headerForecast: this.forecastHeader.updateState({ valid: false }),
-				dataForecast: this.forecastData.updateState({ valid: false }),
-			});
-		});
+		this.updateState({ city, waiting: true });
+	}
+
+	onClickStorage(city) {
+		this.updateState({ city, waiting: true });
 	}
 
 	onChangePeriod(period) {
-		this.updateState({
-			dataForecast: this.forecastData.updateState({ period }),
-		});
+		this.updateState({ period });
 	}
 
-	onChangeUnit(unit) {
-		this.updateState({
-			dataForecast: this.forecastData.updateState({ unit }),
-		});
+	onChangeUnit(val) {
+		const isCelsius = val === 'celsius' ? true : false;
+		this.updateState({ isCelsius });
 	}
 
 	onAddFavorite(city) {
-		this.updateState({
-			dataFavorites: this.favoritesData.updateState({add: city}),
-		});
+		const { favorites } = this.state;
+
+		favorites.indexOf(city) < 0 && favorites.unshift(city);
+
+		this.updateState({ favorites });
 	}
 
 	onDelFavorite(city) {
-		this.updateState({
-			dataFavorites: this.favoritesData.updateState({del: city}),
+		let { favorites } = this.state;
+
+		if (city) {
+			const pos = favorites.indexOf(city);
+			if (pos >= 0) favorites.splice(pos, 1);
+		} else {
+			favorites = [];
+		}
+
+		this.updateState({ favorites });
+	}
+
+	onDelHistory() {
+		this.updateState({ history: [] });
+	}
+
+	onWindowUnload() {
+		let { favorites } = this.state;
+		let { history }   = this.state;
+
+		favorites = favorites.slice(-15); // favorites limit
+		history   = history.slice(-20);   // history limit
+
+		localStorage.setItem('weather-app-favorites', JSON.stringify(favorites));
+		localStorage.setItem('weather-app-history', JSON.stringify(history));
+	}
+
+	onBeforeUpdate(nextState) {
+		if (nextState && nextState.city) nextState.city = cityUppercase(nextState.city);
+	}
+
+	onAfterUpdate(nextState) {
+		if (nextState && nextState.city) this.forecast(nextState.city);
+	}
+
+	forecast(city) {
+		getForecast(city).then(forecast => {
+			const { history } = this.state;
+			history.indexOf(city) < 0 && history.unshift(city);
+			cityToLoc(city, `Weather app :: forecast for ${city}`);
+			document.title = `Forecast for ${city}`;
+
+			this.updateState({waiting: false, valid: true, forecast, history });
+		}).catch(error => {
+			document.title = `No forecast available for ${city}`;
+
+			this.updateState({waiting: false, valid: false});
 		});
 	}
 
-	onClickFavorite(city) {
-		this.onSubmit(city);
-	}
+	render() {
+		const { city }      = this.state;
+		const { period }    = this.state;
+		const { isCelsius } = this.state;
+		const { valid }     = this.state;
+		const { forecast }  = this.state;
+		const { favorites } = this.state;
+		const { history }   = this.state;
+		const { waiting }   = this.state;
+		const favorite      = !!(favorites.indexOf(city)+1);
 
-	onClearFavorite() {
-		this.updateState({
-			headerForecast: this.forecastHeader.updateState({ favorite: false }),
-			dataFavorites: this.favoritesData.updateState({ data: [] }),
-		});
-	}
-
-	onClickHistory(city) {
-		this.onSubmit(city);
-	}
-
-	onClearHistory() {
-		this.updateState({
-			dataHistory: this.historyData.updateState({ data: [] }),
-		});
-	}
-
-	onWindowUnload(e) {
-		this.favoritesData.unload();
-		this.historyData.unload();
+		return [
+			this.searchForm.update({ city, period, isCelsius }),
+			this.forecastHost.update({ city, period, isCelsius, valid, forecast, favorite, waiting }),
+			this.storageHost.update({ favorites, history }),
+		];
 	}
 }
 
